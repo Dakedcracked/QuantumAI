@@ -1,0 +1,21 @@
+model_name: lung_cancer_classifier
+model_type: LungCancerClassifier
+input_shape:
+- 224
+- 224
+- 3
+num_classes: 2
+base_model: ResNet50
+learning_rate: 0.0001
+batch_size: 32
+epochs: 50
+validation_split: 0.2
+freeze_base: true
+use_augmentation: true
+early_stopping_patience: 10
+reduce_lr_patience: 5
+class_labels:
+- Normal
+- Cancerous
+data_dir: data/lung_cancer/train
+test_dir: data/lung_cancer/test
