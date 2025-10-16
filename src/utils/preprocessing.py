@@ -50,7 +50,7 @@ class ImagePreprocessor:
             if len(image.shape) == 2:
                 image = self.clahe_processor.apply(image)
             elif len(image.shape) == 3:
-                # Apply to each channel
+                # Apply to each channetype(yaml_data)l
                 channels = cv2.split(image)
                 channels = [self.clahe_processor.apply(ch) for ch in channels]
                 image = cv2.merge(channels)

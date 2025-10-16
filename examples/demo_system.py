@@ -1,6 +1,7 @@
 """Comprehensive demo of the QuantumAI system."""
 
 import os
+import numpy as np
 import sys
 from pathlib import Path
 
@@ -50,6 +51,7 @@ def demo_lung_cancer_classifier():
     print("\nModel Architecture Summary:")
     print(f"  Total parameters: {model.model.count_params():,}")
     print(f"  Trainable parameters: {sum([tf.size(var).numpy() for var in model.model.trainable_variables]):,}")
+    print(f"  Trainable parameters: {np.sum([np.prod(v.get_shape()) for v in model.model.trainable_variables]):,}")
     
     print("\n✓ Lung Cancer Classifier initialized successfully!")
     
@@ -88,6 +90,7 @@ def demo_brain_cancer_classifier():
     print("\nModel Architecture Summary:")
     print(f"  Total parameters: {model.model.count_params():,}")
     print(f"  Trainable parameters: {sum([tf.size(var).numpy() for var in model.model.trainable_variables]):,}")
+    print(f"  Trainable parameters: {np.sum([np.prod(v.get_shape()) for v in model.model.trainable_variables]):,}")
     
     print("\n✓ Brain Cancer Classifier initialized successfully!")
     

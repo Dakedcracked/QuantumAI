@@ -1,0 +1,4 @@
+base_model: DenseNet121
+epochs: 100
+learning_rate: 5.0e-05
+model_name: custom_classifier

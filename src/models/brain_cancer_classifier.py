@@ -60,6 +60,7 @@ class BrainCancerClassifier(BaseClassifier):
             "task": "Brain Tumor Detection and Classification",
             "imaging_modality": "MRI (T1, T2, FLAIR)",
             "description": "Deep learning model for automated brain tumor detection and classification from MRI scans",
+            "Developed by": "Varun Agrawal"
         }
     
     def predict_with_labels(self, images):

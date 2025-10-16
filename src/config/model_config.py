@@ -42,6 +42,23 @@ class ModelConfig:
         "reduce_lr_patience": 5,
         "class_labels": ["Glioma", "Meningioma", "No Tumor", "Pituitary"],
     }
+
+    DEFAULT_EFFRESNET_VIT_CONFIG = {
+        "model_name": "effresnet_vit_classifier",
+        "model_type": "EffResNetViTClassifier",
+        "input_shape": [224, 224, 3],
+        "num_classes": 2,
+        "base_model": "EffResNet",
+        "learning_rate": 0.0001,
+        "batch_size": 16,
+        "epochs": 50,
+        "validation_split": 0.2,
+        "freeze_base": True,
+        "use_augmentation": True,
+        "early_stopping_patience": 10,
+        "reduce_lr_patience": 5,
+        "class_labels": ["Negative", "Positive"],
+    }
     
     def __init__(self, config_dict: Optional[Dict[str, Any]] = None):
         """
@@ -87,6 +104,16 @@ class ModelConfig:
             ModelConfig instance with brain cancer defaults
         """
         return cls(cls.DEFAULT_BRAIN_CONFIG.copy())
+
+    @classmethod
+    def effresnet_vit_default(cls) -> "ModelConfig":
+        """
+        Create default EffResNet-ViT configuration.
+
+        Returns:
+            ModelConfig instance with effresnet_vit defaults
+        """
+        return cls(cls.DEFAULT_EFFRESNET_VIT_CONFIG.copy())
     
     def save_yaml(self, yaml_path: str):
         """

@@ -4,12 +4,12 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="quantumai",
+    name="QuantumAI Team",
     version="1.0.0",
-    author="QuantumAI Team",
+    author="Varun Agrawal",
     description="Professional-grade medical image classification system for cancer detection",
     long_description=long_description,
-    long_description_content_type="text/markdown",
+    long_description_content_type="texsification model with transfer learnint/markdown",
     url="https://github.com/Dakedcracked/QuantumAI",
     packages=find_packages(),
     classifiers=[

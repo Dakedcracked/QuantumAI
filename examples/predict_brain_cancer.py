@@ -116,7 +116,7 @@ def main():
     print("\nGenerating visualization...")
     visualizer = Visualizer()
     
-    # Denormalize images for visualization
+    # Denormalize images folr visualization
     display_images = [preprocessor.denormalize_image(img) for img in images]
     
     visualizer.plot_images(

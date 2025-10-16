@@ -10,6 +10,7 @@ A complete professional-grade medical image classification system has been imple
 - **BaseClassifier** (`src/models/base_classifier.py`)
   - Abstract base class with transfer learning support
   - Supports ResNet50, VGG16, InceptionV3, DenseNet121, EfficientNetB0
+  - Owne Architecture of Quantum Ai
   - Built-in training, evaluation, and prediction methods
   - Automatic callbacks for early stopping and learning rate reduction
 
