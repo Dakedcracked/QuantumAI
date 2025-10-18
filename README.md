@@ -10,7 +10,7 @@ A professional-grade deep learning system for medical image classification, spec
 
 - **Lung Cancer Classification**: Detect and classify lung cancer from CT scans and X-rays
 - **Brain Tumor Classification**: Identify brain tumors (Glioma, Meningioma, Pituitary) from MRI scans
-- **Transfer Learning**: Leverages state-of-the-art CNN architectures (ResNet50, VGG16, InceptionV3, DenseNet121, EfficientNet)
+- **Transfer Learning**: Leverages state-of-the-art CNN architectures (ResNet50, VGG16, InceptionV3, DenseNet121, EfficientNet,EFFResNet-ViT)
 - **Data Augmentation**: Advanced augmentation techniques for medical images
 - **Professional Metrics**: Comprehensive evaluation with accuracy, precision, recall, F1-score, AUC-ROC, and specificity
 - **Visualization Tools**: Built-in visualization for predictions, training history, and confusion matrices

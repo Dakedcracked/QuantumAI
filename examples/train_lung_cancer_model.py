@@ -8,6 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.models import LungCancerClassifier
+from src.models import EffResNetViTClassifier
 from src.data import DataLoader
 from src.config import ModelConfig
 from src.utils import Visualizer
@@ -19,9 +20,15 @@ def main():
     print("=" * 60)
     
     # Load configuration
-    config = ModelConfig.lung_cancer_default()
+    # config = ModelConfig.lung_cancer_default()
+    # print("\nConfiguration:")
+    # print(config)
+
+
+    # for EffResNet
+    config = ModelConfig.hybrid_default()
     print("\nConfiguration:")
-    print(config)
+    print(config) 
     
     # Initialize data loader
     data_dir = config.get("data_dir", "data/lung_cancer/train")
@@ -58,13 +65,23 @@ def main():
     print(f"Classes: {train_data.class_indices}")
     
     # Initialize model
+    # print("\nInitializing model...")
+    # model = LungCancerClassifier(
+    #     input_shape=tuple(config.get("input_shape")),
+    #     num_classes=config.get("num_classes"),
+    #     base_model_name=config.get("base_model"),
+    #     learning_rate=config.get("learning_rate")
+    # )
+
+        #Initialize model
     print("\nInitializing model...")
-    model = LungCancerClassifier(
+    model = EffResNetViTClassifier(
         input_shape=tuple(config.get("input_shape")),
         num_classes=config.get("num_classes"),
         base_model_name=config.get("base_model"),
         learning_rate=config.get("learning_rate")
     )
+    
     
     # Build model
     print("\nBuilding model architecture...")

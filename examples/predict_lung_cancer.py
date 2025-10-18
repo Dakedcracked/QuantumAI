@@ -8,17 +8,20 @@ import numpy as np
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.models import LungCancerClassifier
+from src.models import EffResNetViTClassifier # <--- NEW HYBRID IMPORT
 from src.utils import ImagePreprocessor, Visualizer
+from src.config import ModelConfig # Need to load config for model path
 
 def main():
     """Main prediction function."""
     print("=" * 60)
-    print("Lung Cancer Prediction")
+    print("Lung Cancer Prediction (EffResNet-ViT)")
     print("=" * 60)
     
-    # Check if model exists
-    model_path = "models/saved/lung_cancer_classifier.h5"
+    # Use config to get the correct model name/path
+    config = ModelConfig.lung_hybrid_default()
+    model_name = config.get("model_name")
+    model_path = f"models/saved/{model_name}.h5"
     
     if not os.path.exists(model_path):
         print(f"\nError: Model not found at {model_path}")
@@ -27,10 +30,12 @@ def main():
     
     # Initialize model and load weights
     print(f"\nLoading model from: {model_path}")
-    model = LungCancerClassifier(
-        input_shape=(224, 224, 3),
-        num_classes=2,
-        base_model_name="ResNet50"
+    
+    # Use the HYBRID CLASS and HYBRID CONFIG SETTINGS
+    model = EffResNetViTClassifier(
+        input_shape=tuple(config.get("input_shape")),
+        num_classes=config.get("num_classes"),
+        base_model_name=config.get("base_model") # Should be "EffResNet"
     )
     model.load_model(model_path)
     
@@ -89,6 +94,7 @@ def main():
     
     # Make predictions
     print(f"\nMaking predictions on {len(images)} images...")
+    # Use the predict_with_labels method from the hybrid model
     predictions, predicted_labels = model.predict_with_labels(images)
     
     # Display results
@@ -97,9 +103,12 @@ def main():
     print("=" * 60)
     
     for i, (filename, pred, label) in enumerate(zip(filenames, predictions, predicted_labels)):
-        confidence = pred[0] if len(pred.shape) == 2 else pred
-        if label == "Normal":
-            confidence = 1 - confidence
+        # Binary prediction confidence handling
+        confidence = pred[0] if pred.ndim == 2 else pred 
+        # For binary, confidence should be the probability of the predicted class.
+        # EffResNetViTClassifier uses ["Negative", "Positive"] by default.
+        if label == "Negative":
+            confidence = 1 - confidence 
         
         print(f"\n{i+1}. {filename}")
         print(f"   Prediction: {label}")

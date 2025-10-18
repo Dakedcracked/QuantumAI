@@ -62,6 +62,7 @@ class LungCancerClassifier(BaseClassifier):
             "task": "Lung Cancer Detection and Classification",
             "imaging_modality": "CT Scan / X-Ray",
             "description": "Deep learning model for automated lung cancer detection and classification from medical images",
+            "Developed by": "Varun Agrawal",
         }
     
     def predict_with_labels(self, images):

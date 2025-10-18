@@ -8,6 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.models import BrainCancerClassifier
+from src.models import EffResNetViTClassifier
 from src.data import DataLoader
 from src.config import ModelConfig
 from src.utils import Visualizer
@@ -19,9 +20,15 @@ def main():
     print("=" * 60)
     
     # Load configuration
-    config = ModelConfig.brain_cancer_default()
+    # for Resnet50
+    # config = ModelConfig.brain_cancer_default()
+    # print("\nConfiguration:")
+    # print(config)
+
+    # for EffResNet
+    config = ModelConfig.hybrid_default()
     print("\nConfiguration:")
-    print(config)
+    print(config)   
     
     # Initialize data loader
     data_dir = config.get("data_dir", "data/brain_cancer/train")
@@ -59,12 +66,23 @@ def main():
     
     # Initialize model
     print("\nInitializing model...")
-    model = BrainCancerClassifier(
+    
+    # this is the default model which is using the resnet50 model architecture
+    # model = BrainCancerClassifier(
+    #     input_shape=tuple(config.get("input_shape")),
+    #     num_classes=config.get("num_classes"),
+    #     base_model_name=config.get("base_model"),
+    #     learning_rate=config.get("learning_rate")
+    # )
+
+    # thsi is the deafult model which is using the EffResNet model architecture
+    model = EffResNetViTClassifier(
         input_shape=tuple(config.get("input_shape")),
         num_classes=config.get("num_classes"),
         base_model_name=config.get("base_model"),
         learning_rate=config.get("learning_rate")
     )
+    
     
     # Build model
     print("\nBuilding model architecture...")
