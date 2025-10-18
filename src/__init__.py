@@ -3,12 +3,13 @@
 __version__ = "1.0.0"
 __author__ = "QuantumAI Team"
 
-from src.models import LungCancerClassifier, BrainCancerClassifier
+from src.models import EffResNetViTClassifier
+from src.models import BaseClassifier
 from src.utils import ImagePreprocessor, ModelEvaluator
 
 __all__ = [
-    "LungCancerClassifier",
-    "BrainCancerClassifier",
+    "EffResNetViTClassifier",
+    "BaseClassifier",
     "ImagePreprocessor",
     "ModelEvaluator",
 ]
