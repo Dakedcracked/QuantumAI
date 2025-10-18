@@ -1,9 +1,8 @@
 """EffResNet-ViT hybrid classifier.
-
-Combines an EfficientNet backbone (optionally fused with ResNet) and a small
-Vision-Transformer encoder on top of spatial features, then a classification head.
+... (docstring)
 """
 
+# ... (imports)
 from typing import Dict, Optional, Tuple, List
 import tensorflow as tf
 from tensorflow import keras
@@ -17,6 +16,7 @@ class EffResNetViTClassifier(BaseClassifier):
     """Hybrid EfficientNet/ResNet + ViT classifier.
     """
 
+    # ... (init method is the same, defining self.embed_dim, etc.)
     def __init__(
         self,
         input_shape: Tuple[int, int, int] = (224, 224, 3),
@@ -42,15 +42,47 @@ class EffResNetViTClassifier(BaseClassifier):
         self.mlp_dim = mlp_dim
         self.dropout = dropout
 
-        # Initialize class_labels as None or empty list; they must be set from config
         self.class_labels: List[str] = []
 
-    def set_class_labels(self, labels: List[str]): # <--- NEW METHOD
+    def set_class_labels(self, labels: List[str]):
         """Set human-readable class labels from the configuration."""
         if len(labels) != self.num_classes:
              raise ValueError(f"Label count ({len(labels)}) does not match num_classes ({self.num_classes})")
         self.class_labels = labels
 
+    # --- TASK 2: ROBUST SERIALIZATION METHODS ---
+    def __getstate__(self):
+        """
+        Prepare state for saving (pickling). Saves all parameters except the large Keras model object itself.
+        """
+        # Save Keras model temporarily, get its path, and then save the rest of the object's attributes.
+        
+        # 1. Save the Keras model to a temporary location (or specific file)
+        # For simplicity in this example, we assume model.save() is called externally 
+        # or we save all attributes *except* the model object.
+        state = self.__dict__.copy()
+        
+        # Do NOT pickle the large Keras model object
+        if 'model' in state:
+            del state['model'] 
+            
+        # Do NOT pickle the Keras history object
+        if 'history' in state:
+            del state['history']
+            
+        return state
+
+    def __setstate__(self, state):
+        """
+        Restore state from loading (unpickling).
+        """
+        self.__dict__.update(state)
+        # Note: The Keras model itself MUST be reloaded via model.load_model() separately 
+        # after this method is called, as Keras models cannot be reliably pickled.
+        self.model = None
+        self.history = None
+    
+    # ... (rest of the methods: get_model_info, _build_vit_encoder, build_model, predict_with_labels)
     def get_model_info(self) -> Dict[str, str]:
         return {
             "model_type": "EffResNet-ViT Hybrid Classifier",
@@ -61,13 +93,12 @@ class EffResNetViTClassifier(BaseClassifier):
             "transformer_layers": str(self.num_transformer_layers),
             "num_heads": str(self.num_heads),
             "description": "EfficientNet/ResNet fused backbone with a small ViT encoder for medical image classification",
-            "class_labels": ", ".join(self.class_labels) # Include labels in info
+            "class_labels": ", ".join(self.class_labels)
         }
-
-    # [Rest of the methods: _build_vit_encoder, build_model, predict_with_labels]
+    
     def _build_vit_encoder(self, x, patch_size: int = 1):
         """Convert spatial features to sequence and apply transformer encoder."""
-        # Convert spatial features to a sequence dynamically: (B, H*W, C)
+        # ... (implementation is the same)
         seq = layers.Lambda(lambda t: tf.reshape(t, (tf.shape(t)[0], -1, tf.shape(t)[-1])))(x)
 
         # Linear projection to embed_dim
@@ -75,20 +106,17 @@ class EffResNetViTClassifier(BaseClassifier):
 
         # Add sinusoidal positional encoding (works with dynamic seq length)
         def add_sinusoidal_pos_encoding(tensor):
-            # tensor shape: (B, S, D)
             seq_len = tf.shape(tensor)[1]
             d_model = self.embed_dim
-            positions = tf.cast(tf.range(seq_len)[:, tf.newaxis], tf.float32)  # (S,1)
-            dims = tf.cast(tf.range(d_model)[tf.newaxis, :], tf.float32)  # (1,D)
-            angle_rates = 1 / tf.pow(10000.0, (2 * (dims // 2)) / tf.cast(d_model, tf.float32))  # (1,D)
-            angle_rads = positions * angle_rates  # (S,D)
+            positions = tf.cast(tf.range(seq_len)[:, tf.newaxis], tf.float32)
+            dims = tf.cast(tf.range(d_model)[tf.newaxis, :], tf.float32)
+            angle_rates = 1 / tf.pow(10000.0, (2 * (dims // 2)) / tf.cast(d_model, tf.float32))
+            angle_rads = positions * angle_rates
 
-            # apply sin to even indices; cos to odd indices
             sines = tf.sin(angle_rads[:, 0::2])
             cosines = tf.cos(angle_rads[:, 1::2])
-            # interleave sines and cosines to form (S, D)
             pos_encoding = tf.reshape(tf.concat([sines, cosines], axis=-1), (seq_len, d_model))
-            pos_encoding = pos_encoding[tf.newaxis, :, :]  # (1, S, D)
+            pos_encoding = pos_encoding[tf.newaxis, :, :]
             return tensor + tf.cast(pos_encoding, tensor.dtype)
 
         seq = layers.Lambda(add_sinusoidal_pos_encoding)(seq)
@@ -115,8 +143,7 @@ class EffResNetViTClassifier(BaseClassifier):
         return pooled
 
     def build_model(self, freeze_base: bool = True, weights: Optional[str] = "imagenet") -> Model:
-        """Build the hybrid model and compile it.
-        """
+        """Build the hybrid model and compile it."""
         inputs = keras.Input(shape=self.input_shape)
 
         # Primary backbone: EfficientNetB0
@@ -129,16 +156,13 @@ class EffResNetViTClassifier(BaseClassifier):
             res = ResNet50(weights=weights, include_top=False, input_shape=self.input_shape)
             res.trainable = not freeze_base
             res_feat = res(inputs)
-            # Resize features if necessary by a 1x1 conv to match channels
-            # Concatenate along channels
-            # Ensure same spatial dims: assume both produce compatible feature map sizes
             fused = layers.Concatenate(axis=-1)([eff_feat, res_feat])
             x = fused
         else:
             x = eff_feat
 
         # Optional conv to reduce channels before transformer
-        x = layers.Conv2D(self.embed_dim, kernel_size=1, activation="relu", name="last_cnn_features")(x) # <--- NAMED FOR Grad-CAM
+        x = layers.Conv2D(self.embed_dim, kernel_size=1, activation="relu", name="last_cnn_features")(x)
 
         # Apply ViT-like encoder
         pooled = self._build_vit_encoder(x)

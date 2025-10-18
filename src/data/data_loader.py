@@ -6,11 +6,13 @@ from pathlib import Path
 from typing import Tuple, Optional, List
 import tensorflow as tf
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-
+from tensorflow.keras.preprocessing.image import load_img, img_to_array # Import specific Keras funcs
 
 class DataLoader:
     """Utilities for loading medical image datasets."""
     
+    # ... (init, load_dataset, load_train_validation_datasets, load_test_dataset methods are the same)
+
     def __init__(
         self,
         data_dir: str,
@@ -20,44 +22,19 @@ class DataLoader:
     ):
         """
         Initialize data loader.
-        
-        Args:
-            data_dir: Root directory containing image data
-            image_size: Target image size (width, height)
-            batch_size: Batch size for data generators
-            validation_split: Fraction of data to use for validation
         """
         self.data_dir = Path(data_dir)
         self.image_size = image_size
         self.batch_size = batch_size
         self.validation_split = validation_split
-    
+
     def load_dataset(
         self,
         subset: str = 'training',
         augment: bool = False,
         shuffle: bool = True
     ) -> tf.keras.preprocessing.image.DirectoryIterator:
-        """
-        Load dataset from directory structure.
-        
-        Expected structure:
-        data_dir/
-            class1/
-                image1.jpg
-                image2.jpg
-            class2/
-                image1.jpg
-                image2.jpg
-        
-        Args:
-            subset: 'training' or 'validation'
-            augment: Whether to apply data augmentation
-            shuffle: Whether to shuffle data
-            
-        Returns:
-            Data generator
-        """
+        # ... (load_dataset implementation is the same)
         if augment:
             datagen = ImageDataGenerator(
                 rescale=1./255,
@@ -86,21 +63,13 @@ class DataLoader:
         )
         
         return generator
-    
+
     def load_train_validation_datasets(
         self,
         augment_train: bool = True
     ) -> Tuple[tf.keras.preprocessing.image.DirectoryIterator, 
                tf.keras.preprocessing.image.DirectoryIterator]:
-        """
-        Load both training and validation datasets.
-        
-        Args:
-            augment_train: Whether to augment training data
-            
-        Returns:
-            Tuple of (train_generator, validation_generator)
-        """
+        # ... (load_train_validation_datasets implementation is the same)
         train_gen = self.load_dataset(
             subset='training',
             augment=augment_train,
@@ -114,22 +83,13 @@ class DataLoader:
         )
         
         return train_gen, val_gen
-    
+
     def load_test_dataset(
         self,
         test_dir: str,
         shuffle: bool = False
     ) -> tf.keras.preprocessing.image.DirectoryIterator:
-        """
-        Load test dataset.
-        
-        Args:
-            test_dir: Directory containing test images
-            shuffle: Whether to shuffle data
-            
-        Returns:
-            Test data generator
-        """
+        # ... (load_test_dataset implementation is the same)
         test_datagen = ImageDataGenerator(rescale=1./255)
         
         test_gen = test_datagen.flow_from_directory(
@@ -141,22 +101,13 @@ class DataLoader:
         )
         
         return test_gen
-    
+
     def load_images_from_directory(
         self,
         directory: str,
         preprocess_func: Optional[callable] = None
     ) -> Tuple[np.ndarray, List[str]]:
-        """
-        Load all images from a directory.
-        
-        Args:
-            directory: Directory path
-            preprocess_func: Optional preprocessing function
-            
-        Returns:
-            Tuple of (images array, filenames list)
-        """
+        # ... (load_images_from_directory implementation is the same)
         directory = Path(directory)
         images = []
         filenames = []
@@ -166,11 +117,11 @@ class DataLoader:
         for img_path in directory.glob('**/*'):
             if img_path.suffix.lower() in valid_extensions:
                 try:
-                    img = tf.keras.preprocessing.image.load_img(
+                    img = load_img(
                         img_path,
                         target_size=self.image_size
                     )
-                    img_array = tf.keras.preprocessing.image.img_to_array(img)
+                    img_array = img_to_array(img)
                     
                     if preprocess_func:
                         img_array = preprocess_func(img_array)
@@ -183,13 +134,60 @@ class DataLoader:
                     print(f"Error loading {img_path}: {e}")
         
         return np.array(images), filenames
-    
+
+    # --- TASK 3: DEBUGGING UTILITY ---
+    def get_debug_slice(
+        self, 
+        num_samples: int = 100
+    ) -> Tuple[np.ndarray, np.ndarray, List[str]]:
+        """
+        Load a small, deterministic slice of images directly into memory for debugging.
+
+        Args:
+            num_samples: Total number of samples to load across all classes.
+        
+        Returns:
+            Tuple of (images_array, labels_array, class_labels)
+        """
+        all_images = []
+        all_labels = []
+        class_names = self.get_class_labels()
+        num_classes = len(class_names)
+        
+        # Determine max samples per class (distributes load evenly)
+        max_samples_per_class = max(1, num_samples // num_classes)
+        
+        for class_idx, class_name in enumerate(class_names):
+            class_dir = self.data_dir / class_name
+            valid_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff']
+            
+            # Use glob to find all images, then slice to max_samples_per_class
+            image_paths = [
+                f for ext in valid_extensions 
+                for f in class_dir.glob(f"*{ext}")
+            ][:max_samples_per_class]
+
+            for img_path in image_paths:
+                try:
+                    img = load_img(img_path, target_size=self.image_size)
+                    img_array = img_to_array(img) / 255.0 # Simple normalization
+                    
+                    all_images.append(img_array)
+                    all_labels.append(class_idx)
+                except Exception as e:
+                    print(f"Warning: Skipping {img_path} for debug slice: {e}")
+
+        # Convert labels to one-hot if more than 2 classes
+        labels_array = np.array(all_labels)
+        if num_classes > 2:
+            labels_array = tf.keras.utils.to_categorical(labels_array, num_classes=num_classes)
+        
+        print(f"Successfully loaded {len(all_images)} images for debug slice.")
+        return np.array(all_images), labels_array, class_names
+
     def get_class_labels(self) -> List[str]:
         """
         Get class labels from directory structure.
-        
-        Returns:
-            List of class labels
         """
         classes = sorted([d.name for d in self.data_dir.iterdir() if d.is_dir()])
         return classes
@@ -201,9 +199,6 @@ class DataLoader:
     def get_dataset_info(self) -> dict:
         """
         Get information about the dataset.
-        
-        Returns:
-            Dictionary with dataset information
         """
         classes = self.get_class_labels()
         

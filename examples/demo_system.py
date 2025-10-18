@@ -7,7 +7,8 @@ from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from src.models import LungCancerClassifier, BrainCancerClassifier
+
+from src.models import EffResNetViTClassifier
 from src.config import ModelConfig
 from src.utils import ImagePreprocessor, ModelEvaluator, Visualizer
 
@@ -30,7 +31,7 @@ def demo_lung_cancer_classifier():
     
     # Initialize model
     print("\nInitializing Lung Cancer Classifier...")
-    model = LungCancerClassifier(
+    model = EffResNetViTClassifier(
         input_shape=tuple(config.get("input_shape")),
         num_classes=config.get("num_classes"),
         base_model_name=config.get("base_model"),
@@ -69,7 +70,7 @@ def demo_brain_cancer_classifier():
     
     # Initialize model
     print("\nInitializing Brain Cancer Classifier...")
-    model = BrainCancerClassifier(
+    model = EffResNetViTClassifier(
         input_shape=tuple(config.get("input_shape")),
         num_classes=config.get("num_classes"),
         base_model_name=config.get("base_model"),
