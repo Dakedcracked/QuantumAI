@@ -3,8 +3,45 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict
 import cv2
+import tensorflow as tf
+from tensorflow.keras import Model # Import Model for type hinting
+
+# Helper function to generate Grad-CAM (outside the class for cleanliness)
+def make_gradcam_heatmap(img_array, model, last_conv_layer_name, pred_index=None):
+    """Computes the Grad-CAM heatmap."""
+    # 1. Create a model that maps the input image to the activations of the last
+    # convolutional layer, as well as the final output.
+    grad_model = tf.keras.models.Model(
+        [model.inputs], [model.get_layer(last_conv_layer_name).output, model.output]
+    )
+
+    # 2. Compute the gradient of the top predicted class for the input image
+    # with respect to the activation of the last conv layer.
+    with tf.GradientTape() as tape:
+        last_conv_layer_output, preds = grad_model(img_array)
+        if pred_index is None:
+            pred_index = tf.argmax(preds[0])
+        class_channel = preds[:, pred_index]
+
+    # 3. This is the gradient of the output neuron (top prediction)
+    # with respect to the output feature map of the last conv layer.
+    grads = tape.gradient(class_channel, last_conv_layer_output)
+
+    # 4. This is a vector where each entry is the mean intensity of the gradient
+    # over a feature map channel. (Global average pooling of the gradients)
+    pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
+
+    # 5. Multiply each channel in the feature map array by channel weight (pooled_grads)
+    # to "weight" the importance of each activation map.
+    last_conv_layer_output = last_conv_layer_output[0]
+    heatmap = last_conv_layer_output @ pooled_grads[..., tf.newaxis]
+    heatmap = tf.squeeze(heatmap)
+
+    # 6. Normalize the heatmap to [0, 1] for visualization
+    heatmap = tf.maximum(heatmap, 0) / tf.reduce_max(heatmap)
+    return heatmap.numpy()
 
 
 class Visualizer:
@@ -13,12 +50,11 @@ class Visualizer:
     def __init__(self, figsize: Tuple[int, int] = (12, 8)):
         """
         Initialize the visualizer.
-        
-        Args:
-            figsize: Default figure size for plots
         """
         self.figsize = figsize
         plt.style.use('seaborn-v0_8-darkgrid')
+    
+    # [Rest of the methods: plot_images, plot_confusion_matrix, plot_training_history, plot_roc_curve, plot_prediction_distribution, plot_model_comparison]
     
     def plot_images(
         self,
@@ -31,14 +67,6 @@ class Visualizer:
     ):
         """
         Plot multiple images in a grid.
-        
-        Args:
-            images: List of images to plot
-            titles: Optional list of titles
-            predictions: Optional list of predictions
-            true_labels: Optional list of true labels
-            cols: Number of columns in grid
-            save_path: Path to save the figure
         """
         n_images = len(images)
         rows = (n_images + cols - 1) // cols
@@ -91,12 +119,6 @@ class Visualizer:
     ):
         """
         Plot confusion matrix.
-        
-        Args:
-            cm: Confusion matrix
-            class_labels: List of class labels
-            normalize: Whether to normalize the matrix
-            save_path: Path to save the figure
         """
         if normalize:
             cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
@@ -132,11 +154,6 @@ class Visualizer:
     ):
         """
         Plot training history.
-        
-        Args:
-            history: Training history dictionary
-            metrics: List of metrics to plot
-            save_path: Path to save the figure
         """
         if metrics is None:
             metrics = [key for key in history.keys() if not key.startswith('val_')]
@@ -181,13 +198,6 @@ class Visualizer:
     ):
         """
         Plot ROC curve.
-        
-        Args:
-            fpr: False positive rates
-            tpr: True positive rates
-            auc_score: AUC score
-            title: Plot title
-            save_path: Path to save the figure
         """
         plt.figure(figsize=self.figsize)
         plt.plot(fpr, tpr, linewidth=2, label=f'ROC (AUC = {auc_score:.3f})')
@@ -213,12 +223,6 @@ class Visualizer:
     ):
         """
         Plot distribution of predictions.
-        
-        Args:
-            predictions: Predicted class indices
-            true_labels: True class indices
-            class_labels: List of class labels
-            save_path: Path to save the figure
         """
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=self.figsize)
         
@@ -257,11 +261,6 @@ class Visualizer:
     ):
         """
         Plot comparison of multiple models.
-        
-        Args:
-            results: Dictionary of model names to metrics
-            metric: Metric to compare
-            save_path: Path to save the figure
         """
         models = list(results.keys())
         scores = [results[model][metric] for model in models]
@@ -286,4 +285,51 @@ class Visualizer:
         if save_path:
             plt.savefig(save_path, dpi=150, bbox_inches='tight')
         
+        plt.show()
+
+    @staticmethod
+    def plot_grad_cam(
+        model: Model, 
+        image: np.ndarray, 
+        last_conv_layer_name: str, 
+        target_class: Optional[int] = None,
+        alpha: float = 0.4
+    ):
+        """
+        Generate and plot Grad-CAM heatmap overlayed on the image.
+
+        Args:
+            model: Trained Keras model.
+            image: Input image (normalized, preprocessed).
+            last_conv_layer_name: Name of the convolutional layer before the transformer.
+            target_class: Index of the class to visualize (default is top predicted).
+            alpha: Opacity of the heatmap.
+        """
+        if image.ndim == 3:
+            img_array = np.expand_dims(image, axis=0)
+        else:
+            img_array = image
+        
+        # Generate the heatmap
+        heatmap = make_gradcam_heatmap(img_array, model, last_conv_layer_name, target_class)
+        
+        # Resize heatmap to the original image dimensions
+        original_image = (image * 255).astype(np.uint8)
+        heatmap = cv2.resize(heatmap, (original_image.shape[1], original_image.shape[0]))
+        
+        # Convert heatmap to RGB
+        heatmap = np.uint8(255 * heatmap)
+        heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+
+        # Superimpose the heatmap onto the original image
+        superimposed_img = heatmap * alpha + original_image * (1 - alpha)
+        superimposed_img = np.clip(superimposed_img, 0, 255).astype(np.uint8)
+        
+        # Convert back to RGB format for matplotlib
+        superimposed_img = cv2.cvtColor(superimposed_img, cv2.COLOR_BGR2RGB)
+
+        plt.figure(figsize=(6, 6))
+        plt.imshow(superimposed_img)
+        plt.axis('off')
+        plt.title("Grad-CAM: Region of Interest")
         plt.show()

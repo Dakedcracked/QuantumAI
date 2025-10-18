@@ -3,11 +3,13 @@
 import os
 import sys
 from pathlib import Path
+from sklearn.utils.class_weight import compute_class_weight
+from numpy import unique
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.models import LungCancerClassifier
+# Remove LungCancerClassifier import
 from src.models import EffResNetViTClassifier
 from src.data import DataLoader
 from src.config import ModelConfig
@@ -16,17 +18,12 @@ from src.utils import Visualizer
 def main():
     """Main training function."""
     print("=" * 60)
-    print("Lung Cancer Classification Model Training")
+    print("Lung Cancer Classification Model Training (EffResNet-ViT)")
     print("=" * 60)
     
     # Load configuration
-    # config = ModelConfig.lung_cancer_default()
-    # print("\nConfiguration:")
-    # print(config)
-
-
-    # for EffResNet
-    config = ModelConfig.hybrid_default()
+    # Use the specific hybrid default for lung cancer
+    config = ModelConfig.lung_hybrid_default() # <--- CORRECT CONFIG CALL
     print("\nConfiguration:")
     print(config) 
     
@@ -63,24 +60,32 @@ def main():
     print(f"Training samples: {train_data.samples}")
     print(f"Validation samples: {val_data.samples}")
     print(f"Classes: {train_data.class_indices}")
+
+    # Calculate class weights for imbalance (Task 1)
+    class_indices = list(train_data.class_indices.values())
+    if train_data.samples > 0 and len(class_indices) > 0:
+        class_weights_array = compute_class_weight(
+            'balanced',
+            classes=unique(class_indices),
+            y=train_data.classes
+        )
+        class_weights_dict = dict(zip(unique(class_indices), class_weights_array))
+        print(f"\nCalculated Class Weights: {class_weights_dict}")
+    else:
+        class_weights_dict = None
+        print("\nCould not calculate class weights (No samples or classes found).")
     
     # Initialize model
-    # print("\nInitializing model...")
-    # model = LungCancerClassifier(
-    #     input_shape=tuple(config.get("input_shape")),
-    #     num_classes=config.get("num_classes"),
-    #     base_model_name=config.get("base_model"),
-    #     learning_rate=config.get("learning_rate")
-    # )
-
-        #Initialize model
-    print("\nInitializing model...")
+    print("\nInitializing hybrid EffResNet-ViT model...")
     model = EffResNetViTClassifier(
         input_shape=tuple(config.get("input_shape")),
         num_classes=config.get("num_classes"),
         base_model_name=config.get("base_model"),
         learning_rate=config.get("learning_rate")
     )
+
+    # Set the human-readable labels from config (Task 3)
+    model.set_class_labels(config.get("class_labels"))
     
     
     # Build model
@@ -103,7 +108,8 @@ def main():
         train_data=train_data,
         validation_data=val_data,
         epochs=config.get("epochs"),
-        batch_size=config.get("batch_size")
+        batch_size=config.get("batch_size"),
+        class_weights=class_weights_dict # <--- PASSING WEIGHTS HERE
     )
     
     # Save model
@@ -121,6 +127,15 @@ def main():
         metrics=['loss', 'accuracy', 'auc'],
         save_path=f"results/{config.get('model_name')}_training_history.png"
     )
+
+    # Optional: Demonstrate Grad-CAM on a single validation image (Task 2)
+    # print("\nDemonstrating Grad-CAM on a sample image (Requires trained weights)...")
+    # try:
+    #     sample_image = next(iter(val_data))[0][0] # Get first image from first batch
+    #     # Last convolutional layer name set in EffResNetViTClassifier.build_model
+    #     Visualizer.plot_grad_cam(model.model, sample_image, "last_cnn_features")
+    # except Exception as e:
+    #     print(f"Grad-CAM visualization failed: {e}")
     
     # Evaluate on validation data
     print("\nEvaluating on validation data...")

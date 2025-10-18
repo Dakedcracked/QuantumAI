@@ -1,15 +1,16 @@
+"""Example script for brain cancer prediction on new images."""
+
 import os
 import sys
 from pathlib import Path
 import numpy as np
 
 # Add src to path
-# this is the basically short trick to use in the modular structure based algorithms
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.models import EffResNetViTClassifier # <--- NEW HYBRID IMPORT
+from src.models import EffResNetViTClassifier
 from src.utils import ImagePreprocessor, Visualizer
-from src.config import ModelConfig # Need to load config for model path
+from src.config import ModelConfig 
 
 def main():
     """Main prediction function."""
@@ -18,7 +19,8 @@ def main():
     print("=" * 60)
     
     # Use config to get the correct model name/path
-    config = ModelConfig.brain_hybrid_default()
+    # IMPORTANT: Assumes ModelConfig.brain_hybrid_default() is implemented
+    config = ModelConfig.brain_hybrid_default() # Load the 4-class hybrid config
     model_name = config.get("model_name")
     model_path = f"models/saved/{model_name}.h5"
 
@@ -33,25 +35,27 @@ def main():
     # Use the HYBRID CLASS and HYBRID CONFIG SETTINGS
     model = EffResNetViTClassifier(
         input_shape=tuple(config.get("input_shape")),
-        num_classes=config.get("num_classes"),
+        num_classes=config.get("num_classes"), # Should be 4
         base_model_name=config.get("base_model") # Should be "EffResNet"
     )
     model.load_model(model_path)
     
-    # The rest of the script is correct as it uses the standardized API methods
+    # Set the human-readable labels for prediction output (CRITICAL STEP)
+    model.set_class_labels(config.get("class_labels"))
+    
     print("\nModel Information:")
     for key, value in model.get_model_info().items():
         print(f"  {key}: {value}")
     
     # Initialize preprocessor
     preprocessor = ImagePreprocessor(
-        target_size=(224, 224),
+        target_size=tuple(config.get("input_shape")[:2]),
         normalize=True,
         clahe=False
     )
     
     # Example: Predict on images from a directory
-    test_dir = "data/brain_cancer/test"
+    test_dir = config.get("test_dir", "data/brain_cancer/test")
     
     if not os.path.exists(test_dir):
         print(f"\nTest directory not found: {test_dir}")
@@ -94,7 +98,6 @@ def main():
     
     # Make predictions
     print(f"\nMaking predictions on {len(images)} images...")
-    # Use the predict_with_labels method from the hybrid model
     predictions, predicted_labels = model.predict_with_labels(images) 
     
     # Display results
@@ -107,8 +110,9 @@ def main():
         if pred.ndim == 2:
             conf_index = np.argmax(pred)
             confidence = pred[0][conf_index]
-        else: # Binary case (shouldn't happen here, but for safety)
-             confidence = pred 
+        else:
+            # Fallback for unexpected prediction shape
+            confidence = pred 
         
         print(f"\n{i+1}. {filename}")
         print(f"   Prediction: {label}")
@@ -117,7 +121,6 @@ def main():
         # Show probabilities for all classes
         if pred.ndim == 2 and pred.shape[1] > 2:
             print("   Class Probabilities:")
-            # Use the class labels directly from the loaded model
             for j, class_name in enumerate(model.class_labels): 
                 print(f"     {class_name}: {pred[0][j]:.2%}")
     
@@ -125,7 +128,7 @@ def main():
     print("\nGenerating visualization...")
     visualizer = Visualizer()
     
-    # Denormalize images folr visualization
+    # Denormalize images for visualization
     display_images = [preprocessor.denormalize_image(img) for img in images]
     
     visualizer.plot_images(

@@ -3,7 +3,7 @@
 import os
 import numpy as np
 from abc import ABC, abstractmethod
-from typing import Tuple, Optional, Dict, List
+from typing import Tuple, Optional, Dict, List, Any
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers, Model
@@ -112,6 +112,7 @@ class BaseClassifier(ABC):
         epochs: int = 50,
         batch_size: int = 32,
         callbacks: Optional[List] = None,
+        class_weights: Optional[Dict[int, float]] = None # <--- NEW PARAMETER
     ) -> Dict:
         """
         Train the classification model.
@@ -122,6 +123,7 @@ class BaseClassifier(ABC):
             epochs: Number of training epochs
             batch_size: Batch size for training
             callbacks: List of Keras callbacks
+            class_weights: Dictionary mapping class indices to weights for loss calculation
             
         Returns:
             Training history dictionary
@@ -138,21 +140,17 @@ class BaseClassifier(ABC):
             epochs=epochs,
             batch_size=batch_size,
             callbacks=callbacks,
+            class_weight=class_weights, # <--- PASSING WEIGHTS HERE
             verbose=1
         )
         
         self.history = history.history
         return self.history
     
+    # [Rest of the methods: predict, evaluate, save_model, load_model, _get_default_callbacks, get_model_info]
     def predict(self, images: np.ndarray) -> np.ndarray:
         """
         Make predictions on input images.
-        
-        Args:
-            images: Input images array
-            
-        Returns:
-            Predictions array
         """
         if self.model is None:
             raise ValueError("Model not trained or loaded")
@@ -162,12 +160,6 @@ class BaseClassifier(ABC):
     def evaluate(self, test_data) -> Dict[str, float]:
         """
         Evaluate model on test data.
-        
-        Args:
-            test_data: Test dataset
-            
-        Returns:
-            Dictionary of evaluation metrics
         """
         if self.model is None:
             raise ValueError("Model not trained or loaded")
@@ -182,9 +174,6 @@ class BaseClassifier(ABC):
     def save_model(self, filepath: str):
         """
         Save the trained model.
-        
-        Args:
-            filepath: Path to save the model
         """
         if self.model is None:
             raise ValueError("No model to save")
@@ -196,9 +185,6 @@ class BaseClassifier(ABC):
     def load_model(self, filepath: str):
         """
         Load a trained model.
-        
-        Args:
-            filepath: Path to the saved model
         """
         if not os.path.exists(filepath):
             raise FileNotFoundError(f"Model file not found: {filepath}")

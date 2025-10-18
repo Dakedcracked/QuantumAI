@@ -8,9 +8,9 @@ import numpy as np
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.models import EffResNetViTClassifier # <--- NEW HYBRID IMPORT
+from src.models import EffResNetViTClassifier
 from src.utils import ImagePreprocessor, Visualizer
-from src.config import ModelConfig # Need to load config for model path
+from src.config import ModelConfig 
 
 def main():
     """Main prediction function."""
@@ -19,6 +19,7 @@ def main():
     print("=" * 60)
     
     # Use config to get the correct model name/path
+    # IMPORTANT: Assumes ModelConfig.lung_hybrid_default() is implemented
     config = ModelConfig.lung_hybrid_default()
     model_name = config.get("model_name")
     model_path = f"models/saved/{model_name}.h5"
@@ -34,10 +35,13 @@ def main():
     # Use the HYBRID CLASS and HYBRID CONFIG SETTINGS
     model = EffResNetViTClassifier(
         input_shape=tuple(config.get("input_shape")),
-        num_classes=config.get("num_classes"),
+        num_classes=config.get("num_classes"), # Should be 2
         base_model_name=config.get("base_model") # Should be "EffResNet"
     )
     model.load_model(model_path)
+    
+    # Set the human-readable labels for prediction output (CRITICAL STEP)
+    model.set_class_labels(config.get("class_labels"))
     
     print("\nModel Information:")
     for key, value in model.get_model_info().items():
@@ -45,13 +49,13 @@ def main():
     
     # Initialize preprocessor
     preprocessor = ImagePreprocessor(
-        target_size=(224, 224),
+        target_size=tuple(config.get("input_shape")[:2]),
         normalize=True,
         clahe=False
     )
     
     # Example: Predict on images from a directory
-    test_dir = "data/lung_cancer/test"
+    test_dir = config.get("test_dir", "data/lung_cancer/test")
     
     if not os.path.exists(test_dir):
         print(f"\nTest directory not found: {test_dir}")
@@ -94,7 +98,6 @@ def main():
     
     # Make predictions
     print(f"\nMaking predictions on {len(images)} images...")
-    # Use the predict_with_labels method from the hybrid model
     predictions, predicted_labels = model.predict_with_labels(images)
     
     # Display results
@@ -103,16 +106,20 @@ def main():
     print("=" * 60)
     
     for i, (filename, pred, label) in enumerate(zip(filenames, predictions, predicted_labels)):
-        # Binary prediction confidence handling
-        confidence = pred[0] if pred.ndim == 2 else pred 
-        # For binary, confidence should be the probability of the predicted class.
-        # EffResNetViTClassifier uses ["Negative", "Positive"] by default.
-        if label == "Negative":
-            confidence = 1 - confidence 
+        # Confidence logic for binary (sigmoid output)
+        if pred.ndim == 2:
+            prob = pred[0]
+        else: # Handle 1D array case if batch size is 1
+            prob = pred
+            
+        # If the predicted label is the positive class (Cancerous, index 1), confidence is prob.
+        # If it's the negative class (Normal, index 0), confidence is 1 - prob.
+        positive_class = config.get("class_labels")[-1] 
+        confidence_score = prob if label == positive_class else 1 - prob 
         
         print(f"\n{i+1}. {filename}")
         print(f"   Prediction: {label}")
-        print(f"   Confidence: {confidence:.2%}")
+        print(f"   Confidence: {confidence_score:.2%}")
     
     # Visualize results
     print("\nGenerating visualization...")

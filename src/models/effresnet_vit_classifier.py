@@ -2,12 +2,9 @@
 
 Combines an EfficientNet backbone (optionally fused with ResNet) and a small
 Vision-Transformer encoder on top of spatial features, then a classification head.
-
-This class extends BaseClassifier and exposes the same API used across the
-project (build_model, train, predict, evaluate, save_model, load_model).
 """
 
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers, Model
@@ -18,14 +15,6 @@ from src.models.base_classifier import BaseClassifier
 
 class EffResNetViTClassifier(BaseClassifier):
     """Hybrid EfficientNet/ResNet + ViT classifier.
-
-    Main idea:
-    - Use EfficientNetB0 as the primary convolutional feature extractor.
-    - Optionally fuse ResNet50 features (when base_model_name == 'EffResNet') by
-      concatenating spatial maps.
-    - Convert resulting spatial feature map into a sequence and run a small
-      transformer encoder (a few MHA + MLP blocks).
-    - Use the transformer's pooled output for classification.
     """
 
     def __init__(
@@ -53,11 +42,14 @@ class EffResNetViTClassifier(BaseClassifier):
         self.mlp_dim = mlp_dim
         self.dropout = dropout
 
-        # human-readable labels placeholder; many projects override post-init
-        if num_classes == 2:
-            self.class_labels = ["Negative", "Positive"]
-        else:
-            self.class_labels = [f"Class_{i}" for i in range(num_classes)]
+        # Initialize class_labels as None or empty list; they must be set from config
+        self.class_labels: List[str] = []
+
+    def set_class_labels(self, labels: List[str]): # <--- NEW METHOD
+        """Set human-readable class labels from the configuration."""
+        if len(labels) != self.num_classes:
+             raise ValueError(f"Label count ({len(labels)}) does not match num_classes ({self.num_classes})")
+        self.class_labels = labels
 
     def get_model_info(self) -> Dict[str, str]:
         return {
@@ -69,17 +61,12 @@ class EffResNetViTClassifier(BaseClassifier):
             "transformer_layers": str(self.num_transformer_layers),
             "num_heads": str(self.num_heads),
             "description": "EfficientNet/ResNet fused backbone with a small ViT encoder for medical image classification",
+            "class_labels": ", ".join(self.class_labels) # Include labels in info
         }
 
+    # [Rest of the methods: _build_vit_encoder, build_model, predict_with_labels]
     def _build_vit_encoder(self, x, patch_size: int = 1):
-        """Convert spatial features to sequence and apply transformer encoder.
-
-        Args:
-            x: 4D tensor (batch, H, W, C)
-            patch_size: patching factor; default 1 uses every spatial location as a token
-        Returns:
-            Tensor after transformer encoder (batch, embed_dim)
-        """
+        """Convert spatial features to sequence and apply transformer encoder."""
         # Convert spatial features to a sequence dynamically: (B, H*W, C)
         seq = layers.Lambda(lambda t: tf.reshape(t, (tf.shape(t)[0], -1, tf.shape(t)[-1])))(x)
 
@@ -129,10 +116,6 @@ class EffResNetViTClassifier(BaseClassifier):
 
     def build_model(self, freeze_base: bool = True, weights: Optional[str] = "imagenet") -> Model:
         """Build the hybrid model and compile it.
-
-        Args:
-            freeze_base: whether to freeze convolutional backbones
-            weights: weights argument for Keras applications (e.g., 'imagenet' or None)
         """
         inputs = keras.Input(shape=self.input_shape)
 
@@ -155,7 +138,7 @@ class EffResNetViTClassifier(BaseClassifier):
             x = eff_feat
 
         # Optional conv to reduce channels before transformer
-        x = layers.Conv2D(self.embed_dim, kernel_size=1, activation="relu")(x)
+        x = layers.Conv2D(self.embed_dim, kernel_size=1, activation="relu", name="last_cnn_features")(x) # <--- NAMED FOR Grad-CAM
 
         # Apply ViT-like encoder
         pooled = self._build_vit_encoder(x)
@@ -187,6 +170,9 @@ class EffResNetViTClassifier(BaseClassifier):
 
     def predict_with_labels(self, images):
         preds = self.predict(images)
+        if not self.class_labels:
+             raise ValueError("Class labels must be set using set_class_labels() before prediction.")
+             
         if self.num_classes == 2:
             labels_idx = (preds > 0.5).astype(int).flatten()
         else:
